@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mathe Quiz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .quiz-container {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin-top: 20px;
+            height: 20px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            width: 0%;
+            background-color: #4caf50;
+            transition: width 0.1s linear;
+        }
+        .answer-option {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #eee;
+            border-radius: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .answer-option.correct { background-color: #4caf50; color: white; }
+        .answer-option.incorrect { background-color: #f44336; color: white; }
+        .settings {
+            margin-top: 20px;
+        }
+        .score {
+            margin-top: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="quiz-container">
+    <h2 id="question">Aufgabe wird erstellt...</h2>
+    <div id="answerOptions"></div>
+    <div class="progress-bar">
+        <div class="progress" id="progress"></div>
+    </div>
+    <div class="score">Punkte: <span id="score">0</span></div>
+    <div class="settings">
+        <label>Zahlenbereich: <input type="range" id="rangeSlider" min="1" max="20" value="10"> <span id="rangeValue">10</span></label><br>
+        <label>Timeout (Sekunden): <input type="range" id="timeSlider" min="1" max="10" value="5"> <span id="timeValue">5</span></label><br>
+        <label>Operationen:</label><br>
+        <input type="checkbox" id="addition" value="+" checked> <label for="addition">+</label>
+        <input type="checkbox" id="subtraction" value="-"> <label for="subtraction">-</label>
+        <input type="checkbox" id="multiplication" value="*"> <label for="multiplication">×</label>
+        <input type="checkbox" id="division" value="/"> <label for="division">÷</label>
+    </div>
+</div>
+
+<script>
+    // DOM-Elemente
+    const questionElement = document.getElementById("question");
+    const answerOptionsElement = document.getElementById("answerOptions");
+    const progressBar = document.getElementById("progress");
+    const scoreElement = document.getElementById("score");
+
+    // Einstellungen-Elemente
+    const rangeSlider = document.getElementById("rangeSlider");
+    const timeSlider = document.getElementById("timeSlider");
+    const rangeValue = document.getElementById("rangeValue");
+    const timeValue = document.getElementById("timeValue");
+
+    let maxNum = parseInt(rangeSlider.value);
+    let timeLimit = parseInt(timeSlider.value) * 1000;
+    let correctAnswer;
+    let countdownInterval;
+    let score = 0;
+
+    // Event Listeners für die Einstellungen
+    rangeSlider.addEventListener("input", () => {
+        maxNum = parseInt(rangeSlider.value);
+        rangeValue.textContent = maxNum;
+    });
+    timeSlider.addEventListener("input", () => {
+        timeLimit = parseInt(timeSlider.value) * 1000;
+        timeValue.textContent = timeSlider.value;
+    });
+
+    // Funktion zum Ermitteln der ausgewählten Operationen
+    function getSelectedOperators() {
+        const selectedOperators = [];
+        if (document.getElementById("addition").checked) selectedOperators.push("+");
+        if (document.getElementById("subtraction").checked) selectedOperators.push("-");
+        if (document.getElementById("multiplication").checked) selectedOperators.push("*");
+        if (document.getElementById("division").checked) selectedOperators.push("/");
+        return selectedOperators;
+    }
+
+    // Punktesystem für jede Operation
+    function getPointsForOperation(operator) {
+        switch (operator) {
+            case '+': return 1;
+            case '-': return 2;
+            case '*': return 3;
+            case '/': return 4;
+            default: return 0;
+        }
+    }
+
+    // Funktion zum Erstellen einer zufälligen Zahl
+    function getRandomNumber(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Funktion zur Generierung einer Aufgabe
+    function generateQuestion() {
+        const num1 = getRandomNumber(1, maxNum);
+        const num2 = getRandomNumber(1, maxNum);
+        const selectedOperators = getSelectedOperators();
+
+        if (selectedOperators.length === 0) {
+            questionElement.textContent = "Bitte mindestens eine Operation auswählen!";
+            return;
+        }
+
+        // Zufällig eine Operation aus den ausgewählten wählen
+        const operator = selectedOperators[Math.floor(Math.random() * selectedOperators.length)];
+        let questionText;
+
+        switch (operator) {
+            case '+':
+                correctAnswer = num1 + num2;
+                questionText = `${num1} + ${num2}`;
+                break;
+            case '-':
+                correctAnswer = num1 - num2;
+                questionText = `${num1} - ${num2}`;
+                break;
+            case '*':
+                correctAnswer = num1 * num2;
+                questionText = `${num1} × ${num2}`;
+                break;
+            case '/':
+                correctAnswer = Math.floor(num1 / num2); // Ganzzahldivision
+                questionText = `${num1} ÷ ${num2}`;
+                break;
+            default:
+                console.error("Ungültiger Operator");
+                return;
+        }
+
+        questionElement.textContent = `Was ist ${questionText}?`;
+        displayAnswerOptions(operator);
+        startCountdown();
+    }
+
+    // Funktion zur Anzeige von Antwortoptionen
+    function displayAnswerOptions(operator) {
+        answerOptionsElement.innerHTML = '';
+        const answers = [correctAnswer];
+        
+        // Zufallsantworten generieren
+        while (answers.length < 5) {
+            const randomAnswer = getRandomNumber(correctAnswer - 10, correctAnswer + 10);
+            if (!answers.includes(randomAnswer)) {
+                answers.push(randomAnswer);
+            }
+        }
+
+        // Antworten mischen
+        answers.sort(() => Math.random() - 0.5);
+
+        // Antworten als Buttons anzeigen
+        answers.forEach(answer => {
+            const answerButton = document.createElement("div");
+            answerButton.classList.add("answer-option");
+            answerButton.textContent = answer;
+            answerButton.addEventListener("click", () => checkAnswer(answerButton, answer, operator));
+            answerOptionsElement.appendChild(answerButton);
+        });
+    }
+
+    // Antwortüberprüfung und Punktesystem
+    function checkAnswer(button, selectedAnswer, operator) {
+        if (selectedAnswer === correctAnswer) {
+            button.classList.add("correct");
+            score += getPointsForOperation(operator); // Punkte hinzufügen
+        } else {
+            button.classList.add("incorrect");
+        }
+        scoreElement.textContent = score; // Punktestand aktualisieren
+        clearInterval(countdownInterval);
+        setTimeout(generateQuestion, 2000); // Nächste Aufgabe nach 2 Sekunden
+    }
+
+    // Countdown mit Progress-Bar
+    function startCountdown() {
+        let timePassed = 0;
+        const totalIntervals = 100;
+        const intervalDuration = timeLimit / totalIntervals;
+
+        countdownInterval = setInterval(() => {
+            timePassed += intervalDuration;
+            let progressPercentage = (timePassed / timeLimit) * 100;
+            progressBar.style.width = progressPercentage + "%";
+
+            if (timePassed >= timeLimit) {
+                clearInterval(countdownInterval);
+                showCorrectAnswer();
+            }
+        }, intervalDuration);
+    }
+
+    // Richtige Antwort hervorheben
+    function showCorrectAnswer() {
+        Array.from(answerOptionsElement.children).forEach(button => {
+            if (parseInt(button.textContent) === correctAnswer) {
+                button.classList.add("correct");
+            } else {
+                button.classList.add("incorrect");
+            }
+        });
+        setTimeout(generateQuestion, 2000);
+    }
+
+    // Start des Quiz
+    generateQuestion();
+</script>
+
+</body>
+</html>
